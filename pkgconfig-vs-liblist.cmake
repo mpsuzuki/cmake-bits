@@ -73,7 +73,27 @@ function (GET_LIB_LIST_PKG_CONFIG pkgname output_list lib_suffix pkg_config_flag
 endfunction()
 
 
+##########################################################################################
+# make a list of libraries
+function (FIND_LIB_FROM_DIRLIST_AND_PATHLIST alib dirs pathnames_in pathnames_out result)
+  set("${result}" FALSE PARENT_SCOPE)
+  foreach (adir IN LISTS dirs)
+    message("  shared lib dir: ${adir}")
+    set(alib_pathname "${adir}/${alib}")
+    SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
+    message("    search pathname ${alib_pathname} in ${pathnames_in}")
 
+    list(FIND pathnames_in "${alib_pathname}" _index)
+    if(_index GREATER -1)
+      message("      found")
+      set("${result}" TRUE PARENT_SCOPE)
+      list(REMOVE_AT pathnames_in _index)
+      set("${pathnames_out}" "${pathnames_in}" PARENT_SCOPE)
+      return()
+    endif()
+  endforeach(adir)
+
+endfunction()
 
 
 ##########################################################################################
@@ -99,20 +119,7 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
   foreach (alib IN LISTS _output_list_shared)
     message("  search shared lib: ${alib}")
     set(_found_this_lib_as_shared FALSE)
-    foreach (adir IN LISTS _libdir_list)
-      message("  shared lib dir: ${adir}")
-      set(alib_pathname "${adir}/${alib}")
-      SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
-      message("    search pathname ${alib_pathname} in ${_libnames_tmp}")
-
-      list(FIND _libnames_tmp "${alib_pathname}" _index)
-      if(_index GREATER -1)
-        message("      found")
-        set(_found_this_lib_as_shared TRUE)
-        list(REMOVE_AT _libnames_tmp _index)
-        break()
-      endif()
-    endforeach(adir)
+    FIND_LIB_FROM_DIRLIST_AND_PATHLIST("${alib}" "${_libdir_list}" "${_libnames}" _libnames_tmp _found_this_lib_as_shared)
     if (NOT _found_this_lib_as_shared)
       set(_found_all_libs_as_shared FALSE)
     endif()
@@ -125,26 +132,13 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
   endif()
 
   ###
-  # check for shared libraries 
+  # check for static libraries 
   set(_found_all_libs_as_static TRUE)
   set(_libnames_tmp "${_libnames}")
   foreach (alib IN LISTS _output_list_static)
     message("  static lib: ${alib}")
     set(_found_this_lib_as_static FALSE)
-    foreach (adir IN LISTS _libdir_list)
-      message("  static lib dir: ${adir}")
-      set(alib_pathname "${adir}/${alib}")
-      SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
-      message("    search pathname ${alib_pathname} in ${_libnames_tmp}")
-
-      list(FIND _libnames_tmp "${alib_pathname}" _index)
-      if(_index GREATER -1)
-        message("      found")
-        set(_found_this_lib_as_static TRUE)
-        list(REMOVE_AT _libnames_tmp _index)
-        break()
-      endif()
-    endforeach(adir)
+    FIND_LIB_FROM_DIRLIST_AND_PATHLIST("${alib}" "${_libdir_list}" "${_libnames}" _libnames_tmp _found_this_lib_as_static)
     if (NOT _found_this_lib_as_static)
       set(_found_all_libs_as_static FALSE)
     endif()
