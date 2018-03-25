@@ -74,8 +74,8 @@ endfunction()
 
 
 ##########################################################################################
-# make a list of libraries
-function (FIND_LIB_FROM_DIRLIST_AND_PATHLIST alib dirs pathnames_in pathnames_out result)
+# search a basename + dirlist from pathlist
+function (FIND_BASE_AND_DIRLIST_FROM_PATHLIST alib dirs pathnames_in pathnames_out result)
   set("${result}" FALSE PARENT_SCOPE)
   foreach (adir IN LISTS dirs)
     message("  shared lib dir: ${adir}")
@@ -95,6 +95,26 @@ function (FIND_LIB_FROM_DIRLIST_AND_PATHLIST alib dirs pathnames_in pathnames_ou
 
 endfunction()
 
+##########################################################################################
+# search baselist + dirlist from pathlist
+function (FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST libs dirs pathnames_in pathnames_out result)
+  set(${result} FALSE PARENT_SCOPE)
+  set(_found_all_libs TRUE)
+  set(_pathnames "${pathnames_in}")
+  foreach (alib IN LISTS libs)
+    message("  search shared lib: ${alib}")
+    set(_found_this_lib FALSE)
+    FIND_BASE_AND_DIRLIST_FROM_PATHLIST("${alib}" "${dirs}" "${_pathnames}" _pathnames _found_this_lib)
+    if (NOT _found_this_lib)
+      set(_found_all_libs FALSE)
+    endif()
+  endforeach(alib)
+  if (_found_all_libs)
+    set(${pathnames_out} "${_pathnames}" PARENT_SCOPE)
+    set(${result} TRUE PARENT_SCOPE)
+  endif()
+
+endfunction()
 
 ##########################################################################################
 #
@@ -113,18 +133,9 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
 
   ###
   # check for shared libraries 
-  set(_found_all_libs_as_shared TRUE)
-  message("${_libnames}")
-  set(_libnames_tmp "${_libnames}")
-  foreach (alib IN LISTS _output_list_shared)
-    message("  search shared lib: ${alib}")
-    set(_found_this_lib_as_shared FALSE)
-    FIND_LIB_FROM_DIRLIST_AND_PATHLIST("${alib}" "${_libdir_list}" "${_libnames}" _libnames_tmp _found_this_lib_as_shared)
-    if (NOT _found_this_lib_as_shared)
-      set(_found_all_libs_as_shared FALSE)
-    endif()
-  endforeach(alib)
-  if (_found_all_libs_as_shared)
+  FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST("${_output_list_shared}" "${_libdir_list}" "${_libnames}"
+                                         _libnames_tmp _found_all_as_shared)
+  if (_found_all_as_shared)
     set(${libnames_out} "${_libnames_tmp}" PARENT_SCOPE)
     set(${is_found} TRUE PARENT_SCOPE)
     set(${is_static} FALSE PARENT_SCOPE)
@@ -133,22 +144,15 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
 
   ###
   # check for static libraries 
-  set(_found_all_libs_as_static TRUE)
-  set(_libnames_tmp "${_libnames}")
-  foreach (alib IN LISTS _output_list_static)
-    message("  static lib: ${alib}")
-    set(_found_this_lib_as_static FALSE)
-    FIND_LIB_FROM_DIRLIST_AND_PATHLIST("${alib}" "${_libdir_list}" "${_libnames}" _libnames_tmp _found_this_lib_as_static)
-    if (NOT _found_this_lib_as_static)
-      set(_found_all_libs_as_static FALSE)
-    endif()
-  endforeach(alib)
-  if (_found_all_libs_as_shared)
+  FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST("${_output_list_static}" "${_libdir_list}" "${_libnames}"
+                                         _libnames_tmp _found_all_as_static)
+  if (_found_all_as_static)
     set(${libnames_out} "${_libnames_tmp}" PARENT_SCOPE)
     set(${is_found} TRUE PARENT_SCOPE)
     set(${is_static} TRUE PARENT_SCOPE)
     return()
   endif()
+
 
   set(${is_found} FALSE PARENT_SCOPE)
   set(${is_static} FALSE PARENT_SCOPE)
