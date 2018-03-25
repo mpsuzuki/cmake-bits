@@ -14,14 +14,28 @@ function (GET_LIST_REQ_PKGS pkgname l)
   set(${l} "${${l}}" PARENT_SCOPE)
 endfunction()
 
-function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found is_static)
+###
+# sanitize "//" in string
+function (SANITIZE_DBL_SLASH str_in str_out)
+  string(REPLACE "//" "/" _str "${str_in}")
+  set("${str_out}" "${_str}" PARENT_SCOPE)
 
-  ###
-  # sanitize "//" in the list of library pathnames built by cmake
-  foreach(alib_pathname IN LISTS libnames_in)
-    string(REPLACE "//" "/" alib_pathname ${alib_pathname})
-    list(APPEND _libnames "${alib_pathname}")
-  endforeach(alib_pathname)
+endfunction()
+
+###
+# sanitize "//" in the list of library pathnames built by cmake
+function (SANITIZE_DBL_SLASH_FROM_LIST list_in list_out)
+  foreach(item IN LISTS list_in)
+    SANITIZE_DBL_SLASH("${item}" item)
+    list(APPEND _list "${item}")
+  endforeach(item)
+  set("${list_out}" "${_list}" PARENT_SCOPE)
+
+endfunction()
+
+
+function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found is_static)
+  SANITIZE_DBL_SLASH_FROM_LIST("${libnames_in}" _libnames)
   message("${_libnames}")
 
   ###
@@ -78,7 +92,7 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
     foreach (adir IN LISTS _libdir_list)
       message("  shared lib dir: ${adir}")
       set(alib_pathname "${adir}/${alib}")
-      string(REPLACE "//" "/" alib_pathname "${alib_pathname}")
+      SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
       message("    search pathname ${alib_pathname} in ${_libnames_tmp}")
 
       list(FIND _libnames_tmp "${alib_pathname}" _index)
@@ -110,7 +124,7 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
     foreach (adir IN LISTS _libdir_list)
       message("  static lib dir: ${adir}")
       set(alib_pathname "${adir}/${alib}")
-      string(REPLACE "//" "/" alib_pathname "${alib_pathname}")
+      SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
       message("    search pathname ${alib_pathname} in ${_libnames_tmp}")
 
       list(FIND _libnames_tmp "${alib_pathname}" _index)
