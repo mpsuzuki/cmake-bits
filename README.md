@@ -1,4 +1,4 @@
-pkgconfig-vs-liblist.cmake
-==========================
+CheckLinkModePkgConfig.cmake
+============================
 
-translate the library list in cmake by pkg-config.
+check a pkg-config module is to be linked dynamically or statically
