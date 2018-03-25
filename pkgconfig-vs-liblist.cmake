@@ -1,5 +1,6 @@
 set(CMAKE_SHARED_LIBRARY_SUFFIX ".so")
 set(CMAKE_STATIC_LIBRARY_SUFFIX ".a")
+set(PKG_CONFIG_EXECUTABLE "pkg-config")
 
 function (GET_LIST_REQ_PKGS pkgname l)
   execute_process(COMMAND          pkg-config --print-requires --print-requires-private ${pkgname}
@@ -14,7 +15,7 @@ function (GET_LIST_REQ_PKGS pkgname l)
   set(${l} "${${l}}" PARENT_SCOPE)
 endfunction()
 
-###
+##########################################################################################
 # sanitize "//" in string
 function (SANITIZE_DBL_SLASH str_in str_out)
   string(REPLACE "//" "/" _str "${str_in}")
@@ -22,7 +23,7 @@ function (SANITIZE_DBL_SLASH str_in str_out)
 
 endfunction()
 
-###
+##########################################################################################
 # sanitize "//" in the list of library pathnames built by cmake
 function (SANITIZE_DBL_SLASH_FROM_LIST list_in list_out)
   foreach(item IN LISTS list_in)
@@ -33,14 +34,10 @@ function (SANITIZE_DBL_SLASH_FROM_LIST list_in list_out)
 
 endfunction()
 
-
-function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found is_static)
-  SANITIZE_DBL_SLASH_FROM_LIST("${libnames_in}" _libnames)
-  message("${_libnames}")
-
-  ###
-  # make a list of directories
-  execute_process(COMMAND          pkg-config --libs-only-L ${pkgname}
+##########################################################################################
+# make a list of directories
+function (GET_DIR_LIST_PKG_CONFIG pkgname libdir_list)
+  execute_process(COMMAND          ${PKG_CONFIG_EXECUTABLE} --libs-only-L ${pkgname}
                   RESULT_VARIABLE  _result_value
                   OUTPUT_VARIABLE  _output_value
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -49,36 +46,49 @@ function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found i
   #
   # often compiler default path is omitted in -L option.
   # include the destination of the package installation.
-  execute_process(COMMAND          pkg-config --variable=libdir ${pkgname}
+  execute_process(COMMAND          ${PKG_CONFIG_EXECUTABLE} --variable=libdir ${pkgname}
                   RESULT_VARIABLE  _result_value
                   OUTPUT_VARIABLE  _output_value
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
   list(APPEND _libdir_list "${_output_value}")
 
-  ### 
-  # make a list of shared libraries requested by pkg-config
-  execute_process(COMMAND          pkg-config --libs-only-l ${pkgname}
+  SANITIZE_DBL_SLASH_FROM_LIST("${_libdir_list}" _libdir_list)
+  set("${libdir_list}" "${_libdir_list}" PARENT_SCOPE)
+
+endfunction()
+
+##########################################################################################
+# make a list of libraries
+function (GET_LIB_LIST_PKG_CONFIG pkgname output_list lib_suffix pkg_config_flag)
+  execute_process(COMMAND          pkg-config --libs-only-l "${pkg_config_flag}" ${pkgname}
                   RESULT_VARIABLE  _result_value
                   OUTPUT_VARIABLE  _output_value
                   OUTPUT_STRIP_TRAILING_WHITESPACE)
   string(REPLACE " -l" " lib" _output_value " ${_output_value}")
   string(REGEX REPLACE "^ " "" _output_value " ${_output_value}")
   # message("shared libs: ${_output_value}")
-  string(REPLACE " " "${CMAKE_SHARED_LIBRARY_SUFFIX};" _output_list_shared "${_output_value}${CMAKE_SHARED_LIBRARY_SUFFIX}")
-  # list(REMOVE_AT _output_list_shared len)
+  string(REPLACE " " "${lib_suffix};" _output_list "${_output_value}${lib_suffix}")
+  set("${output_list}" "${_output_list}" PARENT_SCOPE)
+
+endfunction()
+
+
+
+
+
+##########################################################################################
+#
+function (TRACK_CHAIN_IF_ARCHIVE_LIB pkgname libnames_in libnames_out is_found is_static)
+  SANITIZE_DBL_SLASH_FROM_LIST("${libnames_in}" _libnames)
+  message("${_libnames}")
+
+  GET_DIR_LIST_PKG_CONFIG(${pkgname} _libdir_list)
+  message("${_libdir_list}")
+
+  GET_LIB_LIST_PKG_CONFIG(${pkgname} _output_list_shared ${CMAKE_SHARED_LIBRARY_SUFFIX} "")
   message("shared libs of package ${pkgname}: ${_output_list_shared}")
 
-  ### 
-  # make a list of static libraries requested by pkg-config
-  execute_process(COMMAND          pkg-config --libs-only-l --static ${pkgname}
-                  RESULT_VARIABLE  _result_value
-                  OUTPUT_VARIABLE  _output_value
-                  OUTPUT_STRIP_TRAILING_WHITESPACE)
-  string(REPLACE " -l" " lib" _output_value " ${_output_value}")
-  string(REGEX REPLACE "^ " "" _output_value " ${_output_value}")
-  # message("static libs: ${_output_value}")
-  string(REPLACE " " "${CMAKE_STATIC_LIBRARY_SUFFIX};" _output_list_static "${_output_value}${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  # list(REMOVE_AT _output_list_static len)
+  GET_LIB_LIST_PKG_CONFIG(${pkgname} _output_list_static ${CMAKE_STATIC_LIBRARY_SUFFIX} "--static")
   message("static libs of package ${pkgname}: ${_output_list_static}")
 
   ###
