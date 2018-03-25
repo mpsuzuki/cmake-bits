@@ -61,14 +61,14 @@ endfunction()
 function (FIND_BASE_AND_DIRLIST_FROM_PATHLIST alib dirs pathnames_in pathnames_out result)
   set("${result}" FALSE PARENT_SCOPE)
   foreach (adir IN LISTS dirs)
-    message("  shared lib dir: ${adir}")
+    # message("  shared lib dir: ${adir}")
     set(alib_pathname "${adir}/${alib}")
     SANITIZE_DBL_SLASH("${alib_pathname}" alib_pathname)
-    message("    search pathname ${alib_pathname} in ${pathnames_in}")
+    # message("    search pathname ${alib_pathname} in ${pathnames_in}")
 
     list(FIND pathnames_in "${alib_pathname}" _index)
     if(_index GREATER -1)
-      message("      found")
+      # message("      found")
       set("${result}" TRUE PARENT_SCOPE)
       list(REMOVE_AT pathnames_in _index)
       set("${pathnames_out}" "${pathnames_in}" PARENT_SCOPE)
@@ -85,7 +85,7 @@ function (FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST libs dirs pathnames_in need_al
   set(_found_all_libs TRUE)
   set(_pathnames "${pathnames_in}")
   foreach (alib IN LISTS libs)
-    message("  search shared lib: ${alib}")
+    # message("  search shared lib: ${alib}")
     set(_found_this_lib FALSE)
     FIND_BASE_AND_DIRLIST_FROM_PATHLIST("${alib}" "${dirs}" "${_pathnames}" _pathnames _found_this_lib)
     if (NOT _found_this_lib)
@@ -100,31 +100,31 @@ function (FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST libs dirs pathnames_in need_al
 endfunction()
 
 ##########################################################################################
-#
+# compare a pkg-config module with library list
 function (FIND_PKG_FROM_LIBPATH_LIST pkgname libnames_in libnames_out cleans_chained is_found is_static)
   SANITIZE_DBL_SLASH_FROM_LIST("${libnames_in}" _libnames)
-  message("${_libnames}")
+  # message("${_libnames}")
 
   GET_DIR_LIST_PKG_CONFIG(${pkgname} _libdir_list)
-  message("${_libdir_list}")
+  # message("${_libdir_list}")
 
   GET_LIB_LIST_PKG_CONFIG(${pkgname} _output_list_shared ${CMAKE_SHARED_LIBRARY_SUFFIX} "")
-  message("shared libs of package ${pkgname}: ${_output_list_shared}")
+  # message("shared libs of package ${pkgname}: ${_output_list_shared}")
 
   GET_LIB_LIST_PKG_CONFIG(${pkgname} _output_list_static ${CMAKE_STATIC_LIBRARY_SUFFIX} "--static")
-  message("static libs of package ${pkgname}: ${_output_list_static}")
+  # message("static libs of package ${pkgname}: ${_output_list_static}")
 
   GET_LIB_LIST_PKG_CONFIG(${pkgname} _output_list_shared_chained ${CMAKE_SHARED_LIBRARY_SUFFIX} "--static")
-  message("shared + chained libs of package ${pkgname}: ${_output_list_shared_chained}")
+  # message("shared + chained libs of package ${pkgname}: ${_output_list_shared_chained}")
 
   ###
   # check for shared libraries 
-  message("== check shared")
+  # message("== check shared")
   FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST("${_output_list_shared}" "${_libdir_list}" "${_libnames}" TRUE
                                           _libnames_tmp _found_all_as_shared)
   if (_found_all_as_shared)
     if (cleans_chained)
-      message("== check shared+chained")
+      # message("== check shared+chained")
       set(_libnames "${_libnames_tmp}")
       FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST("${_output_list_shared_chained}" "${_libdir_list}" "${_libnames}" FALSE
                                             _libnames_tmp _found_all_as_shared)
@@ -137,7 +137,7 @@ function (FIND_PKG_FROM_LIBPATH_LIST pkgname libnames_in libnames_out cleans_cha
 
   ###
   # check for static libraries 
-  message("== check static")
+  # message("== check static")
   FIND_BASELIST_AND_DIRLIST_FROM_PATHLIST("${_output_list_static}" "${_libdir_list}" "${_libnames}" TRUE
                                          _libnames_tmp _found_all_as_static)
   if (_found_all_as_static)
@@ -150,4 +150,31 @@ function (FIND_PKG_FROM_LIBPATH_LIST pkgname libnames_in libnames_out cleans_cha
 
   set(${is_found} FALSE PARENT_SCOPE)
   set(${is_static} FALSE PARENT_SCOPE)
+endfunction()
+
+##########################################################################################
+# check if a pkg-config module is linked, and if it is dynamically or statically
+function (CHECK_PKG_LINKMODE pkgname libnames_in libnames_out link_mode)
+  execute_process(COMMAND          ${PKG_CONFIG_EXECUTABLE} --exists ${pkgname}
+                  RESULT_VARIABLE  _result_value
+                  OUTPUT_VARIABLE  _pkgconfigDevNull
+                  OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if ("${_result_value}" STREQUAL "0")
+    FIND_PKG_FROM_LIBPATH_LIST("${pkgname}" "${libnames_in}" _libnames_out FALSE is_found is_static)
+  else()
+    set(is_found  FALSE)
+    set(is_static FALSE)
+  endif()
+  if (NOT(is_found))
+    set(link_mode_ "not")
+  else()
+    set("${libnames_out}" "${_libnames_out}" PARENT_SCOPE)
+    if (is_static)
+      set(link_mode_ "static")
+    else()
+      set(link_mode_ "shared")
+    endif()
+  endif()
+  message("pkg-config \"${pkgname}\" is ${link_mode_} linked")
+  set("${link_mode}" "${link_mode_}" PARENT_SCOPE)
 endfunction()
